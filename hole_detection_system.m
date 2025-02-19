@@ -1,127 +1,126 @@
 function hole_detection_system()
-% °å²Ä³å¿×ÖÊÁ¿¼ì²âÏµÍ³
-% °üº¬Í¼ÏñÔ¤´¦Àí¡¢±ßÔµÌáÈ¡¡¢Ô²¿×Ê¶±ğÓëÄâºÏ¡¢ÂÖÀªÏßÊ¶±ğÓëÄâºÏËÄ¸öÖ÷ÒªÄ£¿é
+% æ¿æå†²å­”è´¨é‡æ£€æµ‹ç³»ç»Ÿ
+% åŒ…å«å›¾åƒé¢„å¤„ç†ã€è¾¹ç¼˜æå–ã€åœ†å­”è¯†åˆ«ä¸æ‹Ÿåˆã€è½®å»“çº¿è¯†åˆ«ä¸æ‹Ÿåˆå››ä¸ªä¸»è¦æ¨¡å—
 
-% ¶ÁÈ¡Í¼Ïñ
-[filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', 'Í¼ÏñÎÄ¼ş (*.jpg, *.png, *.bmp)'});
+% è¯»å–å›¾åƒ
+[filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', 'å›¾åƒæ–‡ä»¶ (*.jpg, *.png, *.bmp)'});
 if filename == 0
     return;
 end
 img = imread(fullfile(pathname, filename));
 
-%% 1. Í¼ÏñÔ¤´¦ÀíÄ£¿é
-% 1.1 Í¼Ïñ»Ò¶È»¯ÅÌ
+%% 1. å›¾åƒé¢„å¤„ç†æ¨¡å—
+% 1.1 å›¾åƒç°åº¦åŒ–ç›˜
 if size(img, 3) == 3
     gray_img = rgb2gray(img);
 else
     gray_img = img;
 end
 
-% 1.2 ×ÔÊÊÓ¦ÖĞÖµÂË²¨È¥Ôë
+% 1.2 è‡ªé€‚åº”ä¸­å€¼æ»¤æ³¢å»å™ª
 filtered_img = adaptive_median_filter(gray_img);
 
-% 1.3 ¶Ô±È¶ÈÔöÇ¿
+% 1.3 å¯¹æ¯”åº¦å¢å¼º
 filtered_img = imadjust(filtered_img, stretchlim(filtered_img, [0.05 0.95]));
 
-%% 2. Í¼Ïñ·Ö¸îÓëROIÌáÈ¡Ä£¿é
-% 2.1 Ê¹ÓÃ¶à¼¶ãĞÖµ·Ö¸î
-T1 = graythresh(filtered_img);  % Otsu·½·¨¼ÆËãÈ«¾ÖãĞÖµ
+%% 2. å›¾åƒåˆ†å‰²ä¸ROIæå–æ¨¡å—
+% 2.1 ä½¿ç”¨å¤šçº§é˜ˆå€¼åˆ†å‰²
+T1 = graythresh(filtered_img);  % Otsuæ–¹æ³•è®¡ç®—å…¨å±€é˜ˆå€¼
 binary_img = imbinarize(filtered_img, T1);
 
-% È·±£Ä¿±êÎª°×É«£¨ÖµÎª1£©£¬±³¾°ÎªºÚÉ«£¨ÖµÎª0£©
+% ç¡®ä¿ç›®æ ‡ä¸ºç™½è‰²ï¼ˆå€¼ä¸º1ï¼‰ï¼ŒèƒŒæ™¯ä¸ºé»‘è‰²ï¼ˆå€¼ä¸º0ï¼‰
 if mean(binary_img(:)) < 0.5
     binary_img = ~binary_img;
 end
 
-% 2.2 ĞÎÌ¬Ñ§´¦Àí¸ÄÉÆ±ßÔµ
-se1 = strel('disk', 3);
-% ÏÈ½øĞĞ¿ªÔËËãÈ¥³ıÔëµã
+% 2.2 å½¢æ€å­¦å¤„ç†æ”¹å–„è¾¹ç¼˜
+se1 = strel('disk', 2);  % å‡å°ç»“æ„å…ƒç´ å¤§å°
+% å…ˆè¿›è¡Œå¼€è¿ç®—å»é™¤å™ªç‚¹
 binary_img = imopen(binary_img, se1);
-% ÔÙ½øĞĞ±ÕÔËËãÁ¬½Ó±ßÔµ
+% å†è¿›è¡Œé—­è¿ç®—è¿æ¥è¾¹ç¼˜
 binary_img = imclose(binary_img, se1);
 
-% 2.3 ±£ÁôÄÚ²¿Ô²¿×
-% ±ê¼ÇÁ¬Í¨ÇøÓò
+% 2.3 ä¿ç•™å†…éƒ¨åœ†å­”
+% æ ‡è®°è¿é€šåŒºåŸŸ
 [L, num] = bwlabel(~binary_img, 8);
 stats = regionprops(L, 'Area', 'Circularity');
 
-% ÕÒ³öÔ²ĞÎÇøÓò£¨Ô²¿×£©
+% æ‰¾å‡ºåœ†å½¢åŒºåŸŸï¼ˆåœ†å­”ï¼‰
 is_hole = false(num, 1);
 for i = 1:num
-    if stats(i).Area > 50 && stats(i).Area < 5000 && stats(i).Circularity > 0.8
+    if stats(i).Area > 30 && stats(i).Area < 1000 && stats(i).Circularity > 0.85  % è°ƒæ•´é¢ç§¯èŒƒå›´å’Œåœ†åº¦é˜ˆå€¼
         is_hole(i) = true;
     end
 end
 
-% ÖØ½¨¶şÖµÍ¼Ïñ£¬±£ÁôÔ²¿×
+% é‡å»ºäºŒå€¼å›¾åƒï¼Œä¿ç•™åœ†å­”
 binary_img_with_holes = binary_img;
 for i = 1:num
     if is_hole(i)
-        binary_img_with_holes(L == i) = 0;  % ½«Ô²¿×ÇøÓòÉèÎªºÚÉ«
+        binary_img_with_holes(L == i) = 0;  % å°†åœ†å­”åŒºåŸŸè®¾ä¸ºé»‘è‰²
     end
 end
 
-% 2.4 ROIÌáÈ¡
-% ÒÆ³ıĞ¡Ãæ»ıÇøÓò
+% 2.4 ROIæå–
+% ç§»é™¤å°é¢ç§¯åŒºåŸŸ
 binary_img = binary_img_with_holes;
-binary_img = bwareaopen(binary_img, 50);  % ½µµÍÃæ»ıãĞÖµÒÔ±£Áô¸ü¶àÏ¸½Ú
+binary_img = bwareaopen(binary_img, 50);  % é™ä½é¢ç§¯é˜ˆå€¼ä»¥ä¿ç•™æ›´å¤šç»†èŠ‚
 roi = extract_roi(binary_img);
 
-%% 3. ±ßÔµÌáÈ¡Ä£¿é
-% 3.1 Ê¹ÓÃ¶şÖµÍ¼ÏñÖ±½ÓÌáÈ¡±ßÔµ
-edges = bwperim(~binary_img_with_holes);  % Ê¹ÓÃ´ø¿×µÄ¶şÖµÍ¼ÏñÖ±½ÓÌáÈ¡±ßÔµ
+%% 3. è¾¹ç¼˜æå–æ¨¡å—
+% 3.1 ä½¿ç”¨äºŒå€¼å›¾åƒç›´æ¥æå–è¾¹ç¼˜
+edges = bwperim(~binary_img_with_holes);  % ä½¿ç”¨å¸¦å­”çš„äºŒå€¼å›¾åƒç›´æ¥æå–è¾¹ç¼˜
 
-% 3.2 ÓÅ»¯±ßÔµ
+% 3.2 ä¼˜åŒ–è¾¹ç¼˜
 se = strel('disk', 1);
-edges = imdilate(edges, se);  % ÇáÎ¢ÅòÕÍÒÔÔöÇ¿±ßÔµ
-edges = bwmorph(edges, 'thin', Inf);  % Ï¸»¯±ßÔµ
-edges = bwareaopen(edges, 20);  % ÒÆ³ıĞ¡µÄÔëÉù
+edges = imdilate(edges, se);  % è½»å¾®è†¨èƒ€ä»¥å¢å¼ºè¾¹ç¼˜
+edges = bwmorph(edges, 'thin', Inf);  % ç»†åŒ–è¾¹ç¼˜
+edges = bwareaopen(edges, 15);  % å‡å°é¢ç§¯é˜ˆå€¼ï¼Œä¿ç•™æ›´å¤šç»†èŠ‚
 
-% ÏÔÊ¾ÖĞ¼ä½á¹ûÓÃÓÚµ÷ÊÔ
-figure('Name', 'Í¼Ïñ´¦ÀíÖĞ¼ä½á¹û', 'NumberTitle', 'off');
-subplot(3,2,1); imshow(gray_img); title('»Ò¶ÈÍ¼Ïñ');
-subplot(3,2,2); imshow(filtered_img); title('ÂË²¨ºÍ¶Ô±È¶ÈÔöÇ¿');
-subplot(3,2,3); imshow(binary_img); title('¶şÖµ»¯½á¹û');
-subplot(3,2,4); imshow(roi); title('ROIÌáÈ¡½á¹û');
+% æ˜¾ç¤ºä¸­é—´ç»“æœç”¨äºè°ƒè¯•
+figure('Name', 'å›¾åƒå¤„ç†ä¸­é—´ç»“æœ', 'NumberTitle', 'off');
+subplot(3,2,1); imshow(gray_img); title('ç°åº¦å›¾åƒ');
+subplot(3,2,2); imshow(filtered_img); title('æ»¤æ³¢å’Œå¯¹æ¯”åº¦å¢å¼º');
+subplot(3,2,3); imshow(binary_img); title('äºŒå€¼åŒ–ç»“æœ');
+subplot(3,2,4); imshow(roi); title('ROIæå–ç»“æœ');
 subplot(3,2,5); 
 imshow(edges);
-title('±ßÔµ¼ì²â½á¹û£¨°üº¬Ô²¿×£©');
+title('è¾¹ç¼˜æ£€æµ‹ç»“æœï¼ˆåŒ…å«åœ†å­”ï¼‰');
 
-% ÏÔÊ¾Ö±·½Í¼
+% æ˜¾ç¤ºç›´æ–¹å›¾
 subplot(3,2,6); 
 imhist(filtered_img);
-title('Í¼ÏñÖ±·½Í¼');
+title('å›¾åƒç›´æ–¹å›¾');
 hold on;
 y_limits = ylim;
 plot([T1*255 T1*255], [0 y_limits(2)], 'r-', 'LineWidth', 2);
-legend('Ö±·½Í¼', 'ãĞÖµ');
+legend('ç›´æ–¹å›¾', 'é˜ˆå€¼');
 hold off;
 
-%% 4. Ô²¿×Ê¶±ğÓëÄâºÏÄ£¿é
-% Ê¹ÓÃ±ßÔµ¼ì²â½á¹û½øĞĞÔ²¼ì²â
-[centers, radii] = imfindcircles(edges, [20 100], ...
+%% 4. åœ†å­”è¯†åˆ«ä¸æ‹Ÿåˆæ¨¡å—
+% ä½¿ç”¨è¾¹ç¼˜æ£€æµ‹ç»“æœè¿›è¡Œåœ†æ£€æµ‹
+[centers, radii] = imfindcircles(edges, [10 30], ...  % ç¼©å°åŠå¾„èŒƒå›´åˆ°10-30åƒç´ 
     'ObjectPolarity', 'bright', ...
-    'Sensitivity', 0.95, ...
-    'EdgeThreshold', 0.1, ...
+    'Sensitivity', 0.85, ...  % é™ä½çµæ•åº¦
+    'EdgeThreshold', 0.2, ...  % æé«˜è¾¹ç¼˜é˜ˆå€¼
     'Method', 'PhaseCode');
 
-% Èç¹ûÃ»ÓĞ¼ì²âµ½Ô²£¬³¢ÊÔÊ¹ÓÃ¶şÖµÑÚÂë
+% å¦‚æœæ²¡æœ‰æ£€æµ‹åˆ°åœ†ï¼Œå°è¯•ä½¿ç”¨äºŒå€¼æ©ç 
 if isempty(centers)
     holes_mask = ~binary_img_with_holes & binary_img;
-    [centers, radii] = imfindcircles(holes_mask, [20 100], ...
-        'ObjectPolarity', 'dark', ...
-        'Sensitivity', 0.92, ...
-        'EdgeThreshold', 0.1);
+    [centers, radii] = imfindcircles(holes_mask, [10 30], ...  % åŒæ ·ç¼©å°åŠå¾„èŒƒå›´
+        'Sensitivity', 0.85, ...
+        'EdgeThreshold', 0.2);
 end
 
-%% 5. ÂÖÀªÏßÊ¶±ğÓëÄâºÏÄ£¿é
-% Ê¹ÓÃ¹¤¼şµÄ¶şÖµÍ¼Ïñ±ßÔµ½øĞĞÂÖÀª¼ì²â
+%% 5. è½®å»“çº¿è¯†åˆ«ä¸æ‹Ÿåˆæ¨¡å—
+% ä½¿ç”¨å·¥ä»¶çš„äºŒå€¼å›¾åƒè¾¹ç¼˜è¿›è¡Œè½®å»“æ£€æµ‹
 workpiece_edges = bwperim(binary_img_with_holes);
 
-% »ñÈ¡ROIÇøÓò
+% è·å–ROIåŒºåŸŸ
 stats = regionprops(binary_img_with_holes, 'BoundingBox', 'Area');
 if ~isempty(stats)
-    % Ñ¡Ôñ×î´óÃæ»ıµÄÇøÓò×÷Îª¹¤¼ş
+    % é€‰æ‹©æœ€å¤§é¢ç§¯çš„åŒºåŸŸä½œä¸ºå·¥ä»¶
     [~, max_idx] = max([stats.Area]);
     bbox = stats(max_idx).BoundingBox;
     roi_x = round(bbox(1));
@@ -129,8 +128,8 @@ if ~isempty(stats)
     roi_w = round(bbox(3));
     roi_h = round(bbox(4));
     
-    % ´´½¨ROIÑÚÂë£¬²¢Ìí¼Ó±ß¾à
-    margin = 10;  % Ìí¼Ó10ÏñËØµÄ±ß¾à
+    % åˆ›å»ºROIæ©ç ï¼Œå¹¶æ·»åŠ è¾¹è·
+    margin = 10;  % æ·»åŠ 10åƒç´ çš„è¾¹è·
     roi_mask = false(size(workpiece_edges));
     roi_y_min = max(1, roi_y - margin);
     roi_y_max = min(size(workpiece_edges,1), roi_y + roi_h + margin);
@@ -138,24 +137,24 @@ if ~isempty(stats)
     roi_x_max = min(size(workpiece_edges,2), roi_x + roi_w + margin);
     roi_mask(roi_y_min:roi_y_max, roi_x_min:roi_x_max) = true;
     
-    % Ö»±£ÁôROIÇøÓòÄÚµÄ±ßÔµ
+    % åªä¿ç•™ROIåŒºåŸŸå†…çš„è¾¹ç¼˜
     workpiece_edges = workpiece_edges & roi_mask;
     
-    % ÒÆ³ıÍ¼Ïñ±ß¿ò
-    border_margin = 20;  % ÉèÖÃ±ß¿òÇøÓòµÄ¿í¶È
-    workpiece_edges(1:border_margin,:) = 0;  % Çå³ıÉÏ±ß¿ò
-    workpiece_edges(end-border_margin:end,:) = 0;  % Çå³ıÏÂ±ß¿ò
-    workpiece_edges(:,1:border_margin) = 0;  % Çå³ı×ó±ß¿ò
-    workpiece_edges(:,end-border_margin:end) = 0;  % Çå³ıÓÒ±ß¿ò
+    % ç§»é™¤å›¾åƒè¾¹æ¡†
+    border_margin = 20;  % è®¾ç½®è¾¹æ¡†åŒºåŸŸçš„å®½åº¦
+    workpiece_edges(1:border_margin,:) = 0;  % æ¸…é™¤ä¸Šè¾¹æ¡†
+    workpiece_edges(end-border_margin:end,:) = 0;  % æ¸…é™¤ä¸‹è¾¹æ¡†
+    workpiece_edges(:,1:border_margin) = 0;  % æ¸…é™¤å·¦è¾¹æ¡†
+    workpiece_edges(:,end-border_margin:end) = 0;  % æ¸…é™¤å³è¾¹æ¡†
 end
 
-% ÍâÂÖÀª¼ì²â
+% å¤–è½®å»“æ£€æµ‹
 [H_outer, theta_outer, rho_outer] = hough(workpiece_edges);
-P_outer = houghpeaks(H_outer, 12, 'threshold', ceil(0.25*max(H_outer(:))));  % Ôö¼Ó·åÖµµãÊıÁ¿£¬½µµÍãĞÖµ
+P_outer = houghpeaks(H_outer, 12, 'threshold', ceil(0.25*max(H_outer(:))));  % å¢åŠ å³°å€¼ç‚¹æ•°é‡ï¼Œé™ä½é˜ˆå€¼
 lines = houghlines(workpiece_edges, theta_outer, rho_outer, P_outer, ...
-    'FillGap', 25, 'MinLength', 25);  % Ôö¼ÓÌî³ä¼äÏ¶£¬¼õĞ¡×îĞ¡³¤¶È
+    'FillGap', 25, 'MinLength', 25);  % å¢åŠ å¡«å……é—´éš™ï¼Œå‡å°æœ€å°é•¿åº¦
 
-% ºÏ²¢Ïà½üµÄÏß¶Î
+% åˆå¹¶ç›¸è¿‘çš„çº¿æ®µ
 if ~isempty(lines)
     merged_lines = [];
     used = false(1, length(lines));
@@ -168,29 +167,29 @@ if ~isempty(lines)
         current_line = lines(i);
         used(i) = true;
         
-        % ¼ÆËãµ±Ç°Ïß¶ÎµÄ½Ç¶È
+        % è®¡ç®—å½“å‰çº¿æ®µçš„è§’åº¦
         dx = current_line.point2(1) - current_line.point1(1);
         dy = current_line.point2(2) - current_line.point1(2);
         angle1 = atan2(dy, dx);
         
-        % Ñ°ÕÒ¿ÉÒÔºÏ²¢µÄÏß¶Î
+        % å¯»æ‰¾å¯ä»¥åˆå¹¶çš„çº¿æ®µ
         for j = i+1:length(lines)
             if used(j)
                 continue;
             end
             
-            % ¼ÆËã´ı±È½ÏÏß¶ÎµÄ½Ç¶È
+            % è®¡ç®—å¾…æ¯”è¾ƒçº¿æ®µçš„è§’åº¦
             dx = lines(j).point2(1) - lines(j).point1(1);
             dy = lines(j).point2(2) - lines(j).point1(2);
             angle2 = atan2(dy, dx);
             
-            % ·Å¿íºÏ²¢Ìõ¼ş
+            % æ”¾å®½åˆå¹¶æ¡ä»¶
             angle_diff = abs(mod(angle1 - angle2 + pi, pi));
-            if angle_diff < 0.3 && ...  % Ôö¼Ó½Ç¶ÈÈİ²î
-               (norm(current_line.point2 - lines(j).point1) < 40 || ...  % Ôö¼Ó¾àÀëÈİ²î
+            if angle_diff < 0.3 && ...  % å¢åŠ è§’åº¦å®¹å·®
+               (norm(current_line.point2 - lines(j).point1) < 40 || ...  % å¢åŠ è·ç¦»å®¹å·®
                 norm(current_line.point1 - lines(j).point2) < 40)
                 
-                % ºÏ²¢Á½ÌõÏß¶Î
+                % åˆå¹¶ä¸¤æ¡çº¿æ®µ
                 points = [current_line.point1; current_line.point2; 
                          lines(j).point1; lines(j).point2];
                 [~, idx] = max(pdist2(mean(points), points));
@@ -211,15 +210,15 @@ if ~isempty(lines)
     lines = merged_lines;
 end
 
-% Ìí¼ÓÂÖÀª±ÕºÏ´¦Àí
+% æ·»åŠ è½®å»“é—­åˆå¤„ç†
 if ~isempty(lines)
-    % ÕÒµ½ËùÓĞÏß¶Î¶Ëµã
+    % æ‰¾åˆ°æ‰€æœ‰çº¿æ®µç«¯ç‚¹
     endpoints = [];
     for i = 1:length(lines)
         endpoints = [endpoints; lines(i).point1; lines(i).point2];
     end
     
-    % Ñ°ÕÒÎ´±ÕºÏµÄ¶Ëµã£¨ÓëÆäËû¶Ëµã¾àÀë½ÏÔ¶µÄµã£©
+    % å¯»æ‰¾æœªé—­åˆçš„ç«¯ç‚¹ï¼ˆä¸å…¶ä»–ç«¯ç‚¹è·ç¦»è¾ƒè¿œçš„ç‚¹ï¼‰
     n_endpoints = size(endpoints, 1);
     unclosed = false(n_endpoints, 1);
     for i = 1:n_endpoints
@@ -230,17 +229,17 @@ if ~isempty(lines)
                 min_dist = min(min_dist, dist);
             end
         end
-        if min_dist > 30  % ÉèÖÃ±ÕºÏãĞÖµ
+        if min_dist > 30  % è®¾ç½®é—­åˆé˜ˆå€¼
             unclosed(i) = true;
         end
     end
     
-    % Á¬½ÓÎ´±ÕºÏµÄ¶Ëµã
+    % è¿æ¥æœªé—­åˆçš„ç«¯ç‚¹
     unclosed_points = endpoints(unclosed,:);
     if size(unclosed_points, 1) >= 2
         for i = 1:2:size(unclosed_points, 1)
             if i+1 <= size(unclosed_points, 1)
-                % ´´½¨ÓëÔ­Ê¼Ïß¶Î½á¹¹ÏàÍ¬µÄĞÂÏß¶Î
+                % åˆ›å»ºä¸åŸå§‹çº¿æ®µç»“æ„ç›¸åŒçš„æ–°çº¿æ®µ
                 new_line = struct('point1', unclosed_points(i,:), ...
                                 'point2', unclosed_points(i+1,:), ...
                                 'theta', 0, ...
@@ -251,14 +250,14 @@ if ~isempty(lines)
     end
 end
 
-% »ñÈ¡½Çµã
+% è·å–è§’ç‚¹
 corners = [];
 if length(lines) >= 2
     for i = 1:length(lines)-1
         for j = i+1:length(lines)
             corner = line_intersection(lines(i), lines(j));
             if ~isempty(corner)
-                % ¼ì²é½ÇµãÊÇ·ñÔÚROIÇøÓòÄÚ
+                % æ£€æŸ¥è§’ç‚¹æ˜¯å¦åœ¨ROIåŒºåŸŸå†…
                 if corner(1) >= roi_x && corner(1) <= roi_x+roi_w && ...
                    corner(2) >= roi_y && corner(2) <= roi_y+roi_h
                     corners = [corners; corner];
@@ -267,18 +266,18 @@ if length(lines) >= 2
         end
     end
     
-    % ºÏ²¢Ïà½üµÄ½Çµã
+    % åˆå¹¶ç›¸è¿‘çš„è§’ç‚¹
     if ~isempty(corners)
         corners = merge_close_corners(corners);
     end
 end
 
-%% 6. ÏÔÊ¾½á¹û
+%% 6. æ˜¾ç¤ºç»“æœ
 display_results(img, edges, centers, radii, lines, corners);
 end
 
 function filtered = adaptive_median_filter(img)
-% ×ÔÊÊÓ¦ÖĞÖµÂË²¨ÊµÏÖ
+% è‡ªé€‚åº”ä¸­å€¼æ»¤æ³¢å®ç°
 [m, n] = size(img);
 filtered = zeros(m, n);
 min_window = 3;
@@ -314,7 +313,7 @@ filtered = uint8(filtered);
 end
 
 function window = get_window(img, i, j, window_size)
-% »ñÈ¡Í¼Ïñ´°¿Ú
+% è·å–å›¾åƒçª—å£
 half = floor(window_size/2);
 [m, n] = size(img);
 row_min = max(1, i-half);
@@ -325,7 +324,7 @@ window = img(row_min:row_max, col_min:col_max);
 end
 
 function threshold = iterative_threshold(img)
-% µü´ú·¨Çó×î¼ÑãĞÖµ
+% è¿­ä»£æ³•æ±‚æœ€ä½³é˜ˆå€¼
 threshold = mean(img(:));
 delta = 0.1;
 while true
@@ -342,7 +341,7 @@ end
 end
 
 function roi = extract_roi(binary_img)
-% ROIÌáÈ¡
+% ROIæå–
 stats = regionprops(binary_img, 'BoundingBox');
 if ~isempty(stats)
     bbox = stats(1).BoundingBox;
@@ -357,7 +356,7 @@ end
 end
 
 function [centers, radii] = detect_and_fit_circles(edges)
-% Ô²¿×Ê¶±ğÓëÄâºÏ
+% åœ†å­”è¯†åˆ«ä¸æ‹Ÿåˆ
 [centers, radii] = imfindcircles(edges, [20 100], 'Sensitivity', 0.85);
 if isempty(centers)
     centers = [];
@@ -366,12 +365,12 @@ end
 end
 
 function [lines, corners] = detect_and_fit_contours(edges)
-% ÂÖÀªÏßÊ¶±ğÓëÄâºÏ
+% è½®å»“çº¿è¯†åˆ«ä¸æ‹Ÿåˆ
 [H, theta, rho] = hough(edges);
 P = houghpeaks(H, 10, 'threshold', ceil(0.3*max(H(:))));
 lines = houghlines(edges, theta, rho, P, 'FillGap', 5, 'MinLength', 7);
 
-% »ñÈ¡½Çµã
+% è·å–è§’ç‚¹
 corners = [];
 if length(lines) >= 2
     for i = 1:length(lines)-1
@@ -388,7 +387,7 @@ end
 end
 
 function corner = line_intersection(line1, line2)
-% ¼ÆËãÁ½Ö±Ïß½»µã
+% è®¡ç®—ä¸¤ç›´çº¿äº¤ç‚¹
 x1 = line1.point1(1);
 y1 = line1.point1(2);
 x2 = line1.point2(1);
@@ -410,26 +409,26 @@ corner = [x, y];
 end
 
 function display_results(original_img, edges, centers, radii, lines, corners)
-% ÏÔÊ¾¼ì²â½á¹û
-figure('Name', '°å²Ä³å¿×ÖÊÁ¿¼ì²â½á¹û', 'NumberTitle', 'off');
+% æ˜¾ç¤ºæ£€æµ‹ç»“æœ
+figure('Name', 'æ¿æå†²å­”è´¨é‡æ£€æµ‹ç»“æœ', 'NumberTitle', 'off');
 
-% Ô­Í¼
+% åŸå›¾
 subplot(2,2,1);
 imshow(original_img);
-title('Ô­Ê¼Í¼Ïñ');
+title('åŸå§‹å›¾åƒ');
 
-% ±ßÔµ¼ì²â½á¹û
+% è¾¹ç¼˜æ£€æµ‹ç»“æœ
 subplot(2,2,2);
 imshow(edges);
-title('±ßÔµ¼ì²â½á¹û');
+title('è¾¹ç¼˜æ£€æµ‹ç»“æœ');
 
-% Ô²¿×¼ì²â½á¹û
+% åœ†å­”æ£€æµ‹ç»“æœ
 subplot(2,2,3);
 imshow(original_img);
 hold on;
 if ~isempty(centers)
     viscircles(centers, radii, 'EdgeColor', 'b', 'LineWidth', 1.5);
-    % ±ê×¢Ô²ĞÄºÍ°ë¾¶
+    % æ ‡æ³¨åœ†å¿ƒå’ŒåŠå¾„
     for i = 1:size(centers, 1)
         plot(centers(i,1), centers(i,2), 'b+', 'MarkerSize', 10, 'LineWidth', 2);
         text(centers(i,1)+10, centers(i,2)+10, ...
@@ -437,56 +436,56 @@ if ~isempty(centers)
              'Color', 'blue', 'FontSize', 8);
     end
 end
-title('Ô²¿×¼ì²â½á¹û');
+title('åœ†å­”æ£€æµ‹ç»“æœ');
 hold off;
 
-% ÂÖÀªÏß¼ì²â½á¹û
+% è½®å»“çº¿æ£€æµ‹ç»“æœ
 subplot(2,2,4);
 imshow(original_img);
 hold on;
-% »æÖÆÂÖÀªÏß
+% ç»˜åˆ¶è½®å»“çº¿
 for k = 1:length(lines)
     xy = [lines(k).point1; lines(k).point2];
     plot(xy(:,1), xy(:,2), 'LineWidth', 2, 'Color', 'green');
 end
-% »æÖÆ½Çµã
+% ç»˜åˆ¶è§’ç‚¹
 if ~isempty(corners)
     plot(corners(:,1), corners(:,2), 'r*', 'MarkerSize', 10);
 end
-title('ÂÖÀªÏß¼ì²â½á¹û');
+title('è½®å»“çº¿æ£€æµ‹ç»“æœ');
 hold off;
 end
 
 function merged_corners = merge_close_corners(corners)
-% ºÏ²¢Ïà½üµÄ½Çµã
+% åˆå¹¶ç›¸è¿‘çš„è§’ç‚¹
 if isempty(corners)
     merged_corners = corners;
     return;
 end
 
-% ÉèÖÃ¾àÀëãĞÖµ
+% è®¾ç½®è·ç¦»é˜ˆå€¼
 dist_threshold = 10;
 
-% ³õÊ¼»¯±ê¼ÇÊı×é
+% åˆå§‹åŒ–æ ‡è®°æ•°ç»„
 n = size(corners, 1);
 merged = false(n, 1);
 merged_corners = [];
 
-% ±éÀúËùÓĞ½Çµã
+% éå†æ‰€æœ‰è§’ç‚¹
 for i = 1:n
     if merged(i)
         continue;
     end
     
-    % ¼ÆËãµ±Ç°½ÇµãÓëÆäËû½ÇµãµÄ¾àÀë
+    % è®¡ç®—å½“å‰è§’ç‚¹ä¸å…¶ä»–è§’ç‚¹çš„è·ç¦»
     distances = sqrt(sum((corners - corners(i,:)).^2, 2));
     close_corners_idx = distances < dist_threshold;
     
-    % ¼ÆËãÏà½ü½ÇµãµÄÆ½¾ùÎ»ÖÃ
+    % è®¡ç®—ç›¸è¿‘è§’ç‚¹çš„å¹³å‡ä½ç½®
     cluster_corners = corners(close_corners_idx, :);
     merged_corner = mean(cluster_corners, 1);
     
-    % Ìí¼ÓºÏ²¢ºóµÄ½Çµã
+    % æ·»åŠ åˆå¹¶åçš„è§’ç‚¹
     merged_corners = [merged_corners; merged_corner];
     merged(close_corners_idx) = true;
 end
