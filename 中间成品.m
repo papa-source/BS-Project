@@ -10,7 +10,7 @@ end
 img = imread(fullfile(pathname, filename));
 
 %% 1. 图像预处理模�?
-% 1.1 图像灰度化盘P
+% 1.1 图像灰度化盘
 if size(img, 3) == 3
     gray_img = rgb2gray(img);
 else

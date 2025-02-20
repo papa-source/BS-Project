@@ -1,6 +1,6 @@
-function hole_detection_system()
-% 板材冲孔质量检测系�?
-% 包含图像预处理、边缘提取、圆孔识别与拟合、轮廓线识别与拟合四个主要模�?
+﻿function hole_detection_system()
+% 板材冲孔质量检测系�?
+% 包含图像预处理、边缘提取、圆孔识别与拟合、轮廓线识别与拟合四个主要模�?
 
 % 读取图像
 [filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', '图像文件 (*.jpg, *.png, *.bmp)'});
@@ -9,26 +9,26 @@ if filename == 0
 end
 img = imread(fullfile(pathname, filename));
 
-%% 1. 图像预处理模�?
-% 1.1 图像灰度化盘P
+%% 1. 图像预处理模�?
+% 1.1 图像灰度化盘
 if size(img, 3) == 3
     gray_img = rgb2gray(img);
 else
     gray_img = img;
 end
 
-% 1.2 自适应中值滤波去�?
+% 1.2 自适应中值滤波去�?
 filtered_img = adaptive_median_filter(gray_img);
 
-% 1.3 对比度增�?
+% 1.3 对比度增�?
 filtered_img = imadjust(filtered_img, stretchlim(filtered_img, [0.05 0.95]));
 
 %% 2. 图像分割与ROI提取模块
-% 2.1 使用多级阈值分�?
-T1 = graythresh(filtered_img);  % Otsu方法计算全局阈�?
+% 2.1 使用多级阈值分�?
+T1 = graythresh(filtered_img);  % Otsu方法计算全局阈�?
 binary_img = imbinarize(filtered_img, T1);
 
-% 确保目标为白色（值为1），背景为黑色（值为0�?
+% 确保目标为白色（值为1），背景为黑色（值为0�?
 if mean(binary_img(:)) < 0.5
     binary_img = ~binary_img;
 end
@@ -41,14 +41,14 @@ binary_img = imopen(binary_img, se1);
 binary_img = imclose(binary_img, se1);
 
 % 2.3 保留内部圆孔
-% 标记连通区�?
+% 标记连通区�?
 [L, num] = bwlabel(~binary_img, 8);
 stats = regionprops(L, 'Area', 'Circularity');
 
 % 找出圆形区域（圆孔）
 is_hole = false(num, 1);
 for i = 1:num
-    if stats(i).Area > 30 && stats(i).Area < 1000 && stats(i).Circularity > 0.85  % 调整面积范围和圆度阈�?
+    if stats(i).Area > 30 && stats(i).Area < 1000 && stats(i).Circularity > 0.85  % 调整面积范围和圆度阈�?
         is_hole(i) = true;
     end
 end
@@ -57,23 +57,23 @@ end
 binary_img_with_holes = binary_img;
 for i = 1:num
     if is_hole(i)
-        binary_img_with_holes(L == i) = 0;  % 将圆孔区域设为黑�?
+        binary_img_with_holes(L == i) = 0;  % 将圆孔区域设为黑�?
     end
 end
 
 % 2.4 ROI提取
-% 移除小面积区�?
+% 移除小面积区�?
 binary_img = binary_img_with_holes;
 binary_img = bwareaopen(binary_img, 50);  % 降低面积阈值以保留更多细节
 roi = extract_roi(binary_img);
 
 %% 3. 边缘提取模块
-% 3.1 使用二值图像直接提取边�?
-edges = bwperim(~binary_img_with_holes);  % 使用带孔的二值图像直接提取边�?
+% 3.1 使用二值图像直接提取边�?
+edges = bwperim(~binary_img_with_holes);  % 使用带孔的二值图像直接提取边�?
 
 % 3.2 优化边缘
 se = strel('disk', 2);  % 增加结构元素大小
-edges = imdilate(edges, se);  % 轻微膨胀以增强边�?
+edges = imdilate(edges, se);  % 轻微膨胀以增强边�?
 edges = bwmorph(edges, 'thin', Inf);  % 细化边缘
 edges = bwareaopen(edges, 30);  % 增加面积阈值，去除更多噪声
 
@@ -85,27 +85,27 @@ subplot(3,2,3); imshow(binary_img); title('二值化结果');
 subplot(3,2,4); imshow(roi); title('ROI提取结果');
 subplot(3,2,5); 
 imshow(edges);
-title('边缘检测结果（包含圆孔�?');
+title('边缘检测结果（包含圆孔�?');
 
-% 显示直方�?
+% 显示直方�?
 subplot(3,2,6); 
 imhist(filtered_img);
-title('图像直方�?');
+title('图像直方�?');
 hold on;
 y_limits = ylim;
 plot([T1*255 T1*255], [0 y_limits(2)], 'r-', 'LineWidth', 2);
-legend('直方�?', '阈�?');
+legend('直方�?', '阈�?');
 hold off;
 
-%% 4. 圆孔识别与拟合模�?
-% 使用边缘检测结果进行圆检�?
-[centers, radii] = imfindcircles(edges, [10 30], ...  % 调整半径范围�?10-30像素
+%% 4. 圆孔识别与拟合模�?
+% 使用边缘检测结果进行圆检�?
+[centers, radii] = imfindcircles(edges, [10 30], ...  % 调整半径范围�?10-30像素
     'ObjectPolarity', 'bright', ...
-    'Sensitivity', 0.85, ...  % 降低敏感�?
+    'Sensitivity', 0.85, ...  % 降低敏感�?
     'EdgeThreshold', 0.1, ...
     'Method', 'PhaseCode');
 
-% 如果没有检测到圆，尝试使用二值掩�?
+% 如果没有检测到圆，尝试使用二值掩�?
 if isempty(centers)
     holes_mask = ~binary_img_with_holes & binary_img;
     [centers, radii] = imfindcircles(holes_mask, [10 30], ...  % 这里也要调整半径范围
@@ -114,7 +114,7 @@ if isempty(centers)
 end
 
 %% 5. 轮廓线识别与拟合模块
-% 使用工件的二值图像边缘进行轮廓检�?
+% 使用工件的二值图像边缘进行轮廓检�?
 workpiece_edges = bwperim(binary_img_with_holes);
 
 % 获取ROI区域
@@ -129,7 +129,7 @@ if ~isempty(stats)
     roi_h = round(bbox(4));
     
     % 创建ROI掩码，并添加边距
-    margin = 10;  % 添加10像素的边�?
+    margin = 10;  % 添加10像素的边�?
     roi_mask = false(size(workpiece_edges));
     roi_y_min = max(1, roi_y - margin);
     roi_y_max = min(size(workpiece_edges,1), roi_y + roi_h + margin);
@@ -141,20 +141,20 @@ if ~isempty(stats)
     workpiece_edges = workpiece_edges & roi_mask;
     
     % 移除图像边框
-    border_margin = 20;  % 设置边框区域的宽�?
-    workpiece_edges(1:border_margin,:) = 0;  % 清除上边�?
-    workpiece_edges(end-border_margin:end,:) = 0;  % 清除下边�?
-    workpiece_edges(:,1:border_margin) = 0;  % 清除左边�?
-    workpiece_edges(:,end-border_margin:end) = 0;  % 清除右边�?
+    border_margin = 20;  % 设置边框区域的宽�?
+    workpiece_edges(1:border_margin,:) = 0;  % 清除上边�?
+    workpiece_edges(end-border_margin:end,:) = 0;  % 清除下边�?
+    workpiece_edges(:,1:border_margin) = 0;  % 清除左边�?
+    workpiece_edges(:,end-border_margin:end) = 0;  % 清除右边�?
 end
 
-% 外轮廓检�?
+% 外轮廓检�?
 [H_outer, theta_outer, rho_outer] = hough(workpiece_edges);
-P_outer = houghpeaks(H_outer, 12, 'threshold', ceil(0.25*max(H_outer(:))));  % 增加峰值点数量，降低阈�?
+P_outer = houghpeaks(H_outer, 12, 'threshold', ceil(0.25*max(H_outer(:))));  % 增加峰值点数量，降低阈�?
 lines = houghlines(workpiece_edges, theta_outer, rho_outer, P_outer, ...
-    'FillGap', 25, 'MinLength', 25);  % 增加填充间隙，减小最小长�?
+    'FillGap', 25, 'MinLength', 25);  % 增加填充间隙，减小最小长�?
 
-% 合并相近的线�?
+% 合并相近的线�?
 if ~isempty(lines)
     merged_lines = [];
     used = false(1, length(lines));
@@ -167,12 +167,12 @@ if ~isempty(lines)
         current_line = lines(i);
         used(i) = true;
         
-        % 计算当前线段的角�?
+        % 计算当前线段的角�?
         dx = current_line.point2(1) - current_line.point1(1);
         dy = current_line.point2(2) - current_line.point1(2);
         angle1 = atan2(dy, dx);
         
-        % 寻找可以合并的线�?
+        % 寻找可以合并的线�?
         for j = i+1:length(lines)
             if used(j)
                 continue;
@@ -212,13 +212,13 @@ end
 
 % 添加轮廓闭合处理
 if ~isempty(lines)
-    % 找到所有线段端�?
+    % 找到所有线段端�?
     endpoints = [];
     for i = 1:length(lines)
         endpoints = [endpoints; lines(i).point1; lines(i).point2];
     end
     
-    % 寻找未闭合的端点（与其他端点距离较远的点�?
+    % 寻找未闭合的端点（与其他端点距离较远的点�?
     n_endpoints = size(endpoints, 1);
     unclosed = false(n_endpoints, 1);
     for i = 1:n_endpoints
@@ -229,7 +229,7 @@ if ~isempty(lines)
                 min_dist = min(min_dist, dist);
             end
         end
-        if min_dist > 30  % 设置闭合阈�?
+        if min_dist > 30  % 设置闭合阈�?
             unclosed(i) = true;
         end
     end
@@ -239,7 +239,7 @@ if ~isempty(lines)
     if size(unclosed_points, 1) >= 2
         for i = 1:2:size(unclosed_points, 1)
             if i+1 <= size(unclosed_points, 1)
-                % 创建与原始线段结构相同的新线�?
+                % 创建与原始线段结构相同的新线�?
                 new_line = struct('point1', unclosed_points(i,:), ...
                                 'point2', unclosed_points(i+1,:), ...
                                 'theta', 0, ...
@@ -257,7 +257,7 @@ if length(lines) >= 2
         for j = i+1:length(lines)
             corner = line_intersection(lines(i), lines(j));
             if ~isempty(corner)
-                % 检查角点是否在ROI区域�?
+                % 检查角点是否在ROI区域�?
                 if corner(1) >= roi_x && corner(1) <= roi_x+roi_w && ...
                    corner(2) >= roi_y && corner(2) <= roi_y+roi_h
                     corners = [corners; corner];
@@ -266,7 +266,7 @@ if length(lines) >= 2
         end
     end
     
-    % 合并相近的角�?
+    % 合并相近的角�?
     if ~isempty(corners)
         corners = merge_close_corners(corners);
     end
@@ -277,7 +277,7 @@ display_results(img, edges, centers, radii, lines, corners);
 end
 
 function filtered = adaptive_median_filter(img)
-% 自适应中值滤波实�?
+% 自适应中值滤波实�?
 [m, n] = size(img);
 filtered = zeros(m, n);
 min_window = 3;
@@ -324,7 +324,7 @@ window = img(row_min:row_max, col_min:col_max);
 end
 
 function threshold = iterative_threshold(img)
-% 迭代法求最佳阈�?
+% 迭代法求最佳阈�?
 threshold = mean(img(:));
 delta = 0.1;
 while true
@@ -356,7 +356,7 @@ end
 end
 
 function [centers, radii] = detect_and_fit_circles(edges)
-% 圆孔识别与拟�?
+% 圆孔识别与拟�?
 [centers, radii] = imfindcircles(edges, [20 100], 'Sensitivity', 0.85);
 if isempty(centers)
     centers = [];
@@ -387,7 +387,7 @@ end
 end
 
 function corner = line_intersection(line1, line2)
-% 计算两直线交�?
+% 计算两直线交�?
 x1 = line1.point1(1);
 y1 = line1.point1(2);
 x2 = line1.point2(1);
@@ -409,26 +409,26 @@ corner = [x, y];
 end
 
 function display_results(original_img, edges, centers, radii, lines, corners)
-% 显示检测结�?
-figure('Name', '板材冲孔质量检测结�?', 'NumberTitle', 'off');
+% 显示检测结�?
+figure('Name', '板材冲孔质量检测结�?', 'NumberTitle', 'off');
 
 % 原图
 subplot(2,2,1);
 imshow(original_img);
 title('原始图像');
 
-% 边缘检测结�?
+% 边缘检测结�?
 subplot(2,2,2);
 imshow(edges);
-title('边缘检测结�?');
+title('边缘检测结�?');
 
-% 圆孔检测结�?
+% 圆孔检测结�?
 subplot(2,2,3);
 imshow(original_img);
 hold on;
 if ~isempty(centers)
     viscircles(centers, radii, 'EdgeColor', 'b', 'LineWidth', 1.5);
-    % 标注圆心和半�?
+    % 标注圆心和半�?
     for i = 1:size(centers, 1)
         plot(centers(i,1), centers(i,2), 'b+', 'MarkerSize', 10, 'LineWidth', 2);
         text(centers(i,1)+10, centers(i,2)+10, ...
@@ -436,14 +436,14 @@ if ~isempty(centers)
              'Color', 'blue', 'FontSize', 8);
     end
 end
-title('圆孔检测结�?');
+title('圆孔检测结�?');
 hold off;
 
-% 轮廓线检测结�?
+% 轮廓线检测结�?
 subplot(2,2,4);
 imshow(original_img);
 hold on;
-% 绘制轮廓�?
+% 绘制轮廓�?
 for k = 1:length(lines)
     xy = [lines(k).point1; lines(k).point2];
     plot(xy(:,1), xy(:,2), 'LineWidth', 2, 'Color', 'green');
@@ -452,26 +452,26 @@ end
 if ~isempty(corners)
     plot(corners(:,1), corners(:,2), 'r*', 'MarkerSize', 10);
 end
-title('轮廓线检测结�?');
+title('轮廓线检测结�?');
 hold off;
 end
 
 function merged_corners = merge_close_corners(corners)
-% 合并相近的角�?
+% 合并相近的角�?
 if isempty(corners)
     merged_corners = corners;
     return;
 end
 
-% 设置距离阈�?
+% 设置距离阈�?
 dist_threshold = 10;
 
-% 初始化标记数�?
+% 初始化标记数�?
 n = size(corners, 1);
 merged = false(n, 1);
 merged_corners = [];
 
-% 遍历所有角�?
+% 遍历所有角�?
 for i = 1:n
     if merged(i)
         continue;
@@ -481,7 +481,7 @@ for i = 1:n
     distances = sqrt(sum((corners - corners(i,:)).^2, 2));
     close_corners_idx = distances < dist_threshold;
     
-    % 计算相近角点的平均位�?
+    % 计算相近角点的平均位�?
     cluster_corners = corners(close_corners_idx, :);
     merged_corner = mean(cluster_corners, 1);
     
