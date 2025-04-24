@@ -68,14 +68,94 @@ binary_img = bwareaopen(binary_img, 50);  % 降低面积阈值以保留更多细
 roi = extract_roi(binary_img);
 
 %% 3. 边缘提取模块
-% 3.1 使用二值图像直接提取边缘
-edges = bwperim(~binary_img_with_holes);  % 使用带孔的二值图像直接提取边缘
+% 3.1 选择边缘检测方法
+% 弹出对话框询问用户是否要使用高级边缘检测
+use_advanced_edge_detection = questdlg('是否使用高级边缘检测算法？', ...
+    '边缘检测方法选择', ...
+    '使用高级算法', '使用传统方法', '进行算法比较', '使用高级算法');
 
-% 3.2 优化边缘
-se = strel('disk', 1);
-edges = imdilate(edges, se);  % 轻微膨胀以增强边缘
-edges = bwmorph(edges, 'thin', Inf);  % 细化边缘
-edges = bwareaopen(edges, 15);  % 减小面积阈值，保留更多细节
+switch use_advanced_edge_detection
+    case '使用高级算法'
+        % 使用集成的边缘检测函数（可选GUI或自动模式）
+        disp('使用高级边缘检测算法...');
+        show_gui = true;
+        edges = integrate_edge_detection(filtered_img, show_gui);
+        
+    case '使用传统方法'
+        % 使用原来的方法
+        disp('使用传统边缘检测方法...');
+        % 使用二值图像直接提取边缘
+        edges = bwperim(~binary_img_with_holes);  % 使用带孔的二值图像直接提取边缘
+        
+        % 优化边缘
+        se = strel('disk', 1);
+        edges = imdilate(edges, se);  % 轻微膨胀以增强边缘
+        edges = bwmorph(edges, 'thin', Inf);  % 细化边缘
+        edges = bwareaopen(edges, 15);  % 减小面积阈值，保留更多细节
+        
+    case '进行算法比较'
+        % 调用比较函数
+        disp('比较不同边缘检测算法...');
+        [edges_canny, ~, edges_canny_final, edges_roberts, edges_sobel, edges_prewitt, edges_log] = compare_edge_detectors(filtered_img);
+        
+        % 弹出对话框让用户选择最终使用的算法
+        results = {'优化后的Canny', '原始Canny', 'Roberts', 'Sobel', 'Prewitt', 'LoG', '传统方法'};
+        [selection, ok] = listdlg('ListString', results, 'SelectionMode', 'single', ...
+            'Name', '选择最终结果', 'PromptString', '请选择要应用的最终边缘检测结果:', ...
+            'ListSize', [200 150]);
+        
+        if ok
+            switch selection
+                case 1
+                    edges = edges_canny_final;
+                    disp('使用优化后的Canny算法结果');
+                case 2
+                    edges = edges_canny;
+                    disp('使用原始Canny算法结果');
+                case 3
+                    edges = edges_roberts;
+                    disp('使用Roberts算法结果');
+                case 4
+                    edges = edges_sobel;
+                    disp('使用Sobel算法结果');
+                case 5
+                    edges = edges_prewitt;
+                    disp('使用Prewitt算法结果');
+                case 6
+                    edges = edges_log;
+                    disp('使用LoG算法结果');
+                case 7
+                    % 使用传统方法
+                    edges = bwperim(~binary_img_with_holes);
+                    se = strel('disk', 1);
+                    edges = imdilate(edges, se);
+                    edges = bwmorph(edges, 'thin', Inf);
+                    edges = bwareaopen(edges, 15);
+                    disp('使用传统方法');
+            end
+        else
+            % 默认使用传统方法
+            edges = bwperim(~binary_img_with_holes);
+            se = strel('disk', 1);
+            edges = imdilate(edges, se);
+            edges = bwmorph(edges, 'thin', Inf);
+            edges = bwareaopen(edges, 15);
+            disp('用户取消选择，使用传统方法');
+        end
+        
+    otherwise
+        % 默认使用传统方法
+        disp('未选择边缘检测方法，使用传统方法...');
+        edges = bwperim(~binary_img_with_holes);
+        se = strel('disk', 1);
+        edges = imdilate(edges, se);
+        edges = bwmorph(edges, 'thin', Inf);
+        edges = bwareaopen(edges, 15);
+end
+
+% 3.2 边缘后处理（无论使用哪种算法）
+% 可以根据需要添加通用的边缘优化处理
+edges = bwareaopen(edges, 10);  % 去除小区域
 
 % 显示中间结果用于调试
 figure('Name', '图像处理中间结果', 'NumberTitle', 'off');

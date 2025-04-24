@@ -5,13 +5,13 @@ function [centers, radii] = detect_and_fit_circles(edges)
 % 1. 预处理边缘图像
 se = strel('disk', 1);
 edges_cleaned = imclose(edges, se);
-edges_cleaned = bwareaopen(edges_cleaned, 25);  % 调整面积阈值
+edges_cleaned = bwareaopen(edges_cleaned, 30);  % 增加面积阈值以去除更多噪声
 
 % 2. 使用Hough变换进行圆检测
 [centers, radii] = imfindcircles(edges_cleaned, [23 25], ... % 缩小半径范围以匹配实际圆孔大小
     'ObjectPolarity', 'dark', ...
-    'Sensitivity', 0.90, ...  % 调整灵敏度
-    'EdgeThreshold', 0.15);   % 调整边缘阈值
+    'Sensitivity', 0.92, ...  % 提高灵敏度
+    'EdgeThreshold', 0.1);    % 降低边缘阈值以检测更多潜在圆
 
 % 3. 如果没有检测到足够的圆，尝试使用连通区域分析
 if size(centers, 1) < 4
@@ -59,7 +59,7 @@ if ~isempty(centers)
         end
         % 计算当前圆与其他圆的距离
         distances = sqrt(sum((centers - centers(i,:)).^2, 2));
-        overlaps = distances < 35;  % 调整距离阈值
+        overlaps = distances < 40;  % 增加距离阈值以更好地检测重复圆
         overlaps(i) = false;
         
         if any(overlaps)
@@ -72,7 +72,7 @@ if ~isempty(centers)
             end
             [max_quality, best_idx] = max(qualities);
             % 只保留质量明显更好的圆
-            if best_idx ~= 1 && max_quality > qualities(1) * 1.2
+            if best_idx ~= 1 && max_quality > qualities(1) * 1.3  % 提高质量差异要求
                 valid_circles(i) = false;
             else
                 valid_circles(overlapping_idx) = false;
@@ -96,7 +96,7 @@ if size(centers, 1) > 6
 end
 
 % 6. 半径修正
-radii = radii * 0.98;  % 调整半径修正因子
+radii = radii * 0.99;  % 轻微调整半径
 end
 
 function [center, radius] = fit_circle_to_points(points)
@@ -129,7 +129,7 @@ end
 
 function quality = evaluate_circle_quality(edges, center, radius)
 % 评估圆的质量
-theta = linspace(0, 2*pi, 100);  % 采样点数量
+theta = linspace(0, 2*pi, 120);  % 进一步增加采样点
 x = round(center(1) + radius*cos(theta));
 y = round(center(2) + radius*sin(theta));
 
@@ -149,7 +149,7 @@ edge_points = sum(edges(idx));
 quality = edge_points / length(idx);
 
 % 检查内部区域
-inner_radius = radius * 0.75;  % 调整内部检查区域
+inner_radius = radius * 0.8;  % 扩大内部检查区域
 x_inner = round(center(1) + inner_radius*cos(theta));
 y_inner = round(center(2) + inner_radius*sin(theta));
 valid_idx = x_inner > 0 & x_inner <= size(edges, 2) & ...
@@ -160,14 +160,14 @@ y_inner = y_inner(valid_idx);
 if ~isempty(x_inner) && ~isempty(y_inner)
     idx_inner = sub2ind(size(edges), y_inner, x_inner);
     inner_points = sum(edges(idx_inner)) / length(idx_inner);
-    if inner_points > 0.15  % 调整内部边缘点阈值
-        quality = quality * 0.4;  % 调整惩罚系数
+    if inner_points > 0.2  % 提高内部边缘点阈值
+        quality = quality * 0.3;  % 加强对内部边缘点的惩罚
     end
 end
 
 % 考虑圆的完整性
-if quality < 0.4  % 调整完整性阈值
-    quality = quality * 0.5;
+if quality < 0.5  % 提高完整性要求
+    quality = quality * 0.4;
 end
 
 % 考虑圆的对称性
